@@ -1,4 +1,5 @@
 app.controller('ProductController', function ($scope, dataFactory) {
+
     $scope.openModal = function (type, product = null) {
         if (type === 'add') {
             $scope.form = {};
@@ -13,7 +14,90 @@ app.controller('ProductController', function ($scope, dataFactory) {
     $scope.form = {};
 
     // =========================
-    // LOAD CATEGORIES (MASTER)
+    // SEARCH + FILTER
+    // =========================
+    $scope.search = {
+        name: '',
+        category_id: ''
+    };
+
+    // =========================
+    // PAGINATION
+    // =========================
+    $scope.currentPage = 1;
+    $scope.pageSize = 5;
+
+    // =========================
+    // FILTER FUNCTION
+    // =========================
+    $scope.filterProducts = function (product) {
+
+        let matchName = true;
+        let matchCategory = true;
+
+        // Search by name
+        if ($scope.search.name) {
+            matchName = product.name.toLowerCase()
+                .includes($scope.search.name.toLowerCase());
+        }
+
+        // Filter by category dropdown
+        if ($scope.search.category_id) {
+            matchCategory = product.category_id == $scope.search.category_id;
+        }
+
+        return matchName && matchCategory;
+    };
+
+    // =========================
+    // PAGINATED DATA
+    // =========================
+    $scope.getPaginatedData = function () {
+        let filtered = $scope.products.filter($scope.filterProducts);
+
+        let start = ($scope.currentPage - 1) * $scope.pageSize;
+        let end = start + $scope.pageSize;
+
+        return filtered.slice(start, end);
+    };
+
+    // =========================
+    // TOTAL PAGES
+    // =========================
+    $scope.totalPages = function () {
+        return Math.ceil(
+            $scope.products.filter($scope.filterProducts).length / $scope.pageSize
+        );
+    };
+
+    // =========================
+    // PAGE FUNCTIONS
+    // =========================
+    $scope.setPage = function (page) {
+        if (page >= 1 && page <= $scope.totalPages()) {
+            $scope.currentPage = page;
+        }
+    };
+
+    $scope.prevPage = function () {
+        if ($scope.currentPage > 1) {
+            $scope.currentPage--;
+        }
+    };
+
+    $scope.nextPage = function () {
+        if ($scope.currentPage < $scope.totalPages()) {
+            $scope.currentPage++;
+        }
+    };
+
+    // Reset page when filter/search changes
+    $scope.$watch('search', function () {
+        $scope.currentPage = 1;
+    }, true);
+
+    // =========================
+    // LOAD CATEGORIES
     // =========================
     dataFactory.httpRequest('categories')
         .then(function (response) {
@@ -33,7 +117,7 @@ app.controller('ProductController', function ($scope, dataFactory) {
     loadProducts();
 
     // =========================
-    // CREATE PRODUCT
+    // CREATE
     // =========================
     $scope.save = function () {
         dataFactory.httpRequest('products', 'POST', {}, $scope.form)
@@ -44,7 +128,7 @@ app.controller('ProductController', function ($scope, dataFactory) {
     };
 
     // =========================
-    // EDIT PRODUCT
+    // EDIT
     // =========================
     $scope.edit = function (product) {
         $scope.form = {
@@ -56,7 +140,7 @@ app.controller('ProductController', function ($scope, dataFactory) {
     };
 
     // =========================
-    // UPDATE PRODUCT
+    // UPDATE
     // =========================
     $scope.update = function () {
         dataFactory.httpRequest(
@@ -77,7 +161,7 @@ app.controller('ProductController', function ($scope, dataFactory) {
     };
 
     // =========================
-    // DELETE PRODUCT
+    // DELETE
     // =========================
     $scope.remove = function (id, index) {
         if (confirm("Delete Product?")) {

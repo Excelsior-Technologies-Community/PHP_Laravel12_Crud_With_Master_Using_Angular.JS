@@ -21,7 +21,12 @@
             <tbody>
                 <tr ng-repeat="cat in categories">
                     <td>{{ cat.id }}</td>
-                    <td>{{ cat.name }}</td>
+                    <td>
+                        {{ cat.name }}
+                        <span class="badge" style="background:#5bc0de;">
+                            {{ cat.products_count }} Products
+                        </span>
+                    </td>
                     <td>
                         <button class="btn btn-warning btn-sm" ng-click="openModal('edit', cat)">Edit</button>
                         <button class="btn btn-danger btn-sm" ng-click="remove(cat.id, $index)">Delete</button>
@@ -37,22 +42,23 @@
 
 <!-- ================== Modal ================== -->
 <div class="modal fade" id="categoryModal" tabindex="-1" role="dialog">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header bg-primary text-white">
-        <h4 class="modal-title">{{ form.id ? 'Edit Category' : 'Add Category' }}</h4>
-        <button type="button" class="close" data-dismiss="modal">&times;</button>
-      </div>
-      <div class="modal-body">
-        <form ng-submit="form.id ? update() : save()">
-            <div class="form-group">
-                <label>Category Name</label>
-                <input type="text" class="form-control" ng-model="form.name" placeholder="Enter category name" required>
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h4 class="modal-title">{{ form.id ? 'Edit Category' : 'Add Category' }}</h4>
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
             </div>
-            <button type="submit" class="btn btn-primary">{{ form.id ? 'Update' : 'Save' }}</button>
-            <button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
-        </form>
-      </div>
+            <div class="modal-body">
+                <form ng-submit="form.id ? update() : save()">
+                    <div class="form-group">
+                        <label>Category Name</label>
+                        <input type="text" class="form-control" ng-model="form.name" placeholder="Enter category name"
+                            required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">{{ form.id ? 'Update' : 'Save' }}</button>
+                    <button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
+                </form>
+            </div>
+        </div>
     </div>
-  </div>
 </div>
