@@ -7,38 +7,55 @@ use Illuminate\Http\Request;
 
 class ProductController extends Controller
 {
-    // Return products with category for index
     public function index()
     {
-        $products = Product::with('category')->get();
-        return response()->json($products);
+        return response()->json(Product::with('category', 'sizes')->get());
     }
 
-    // Return product with category for store (save)
     public function store(Request $request)
     {
-        $product = Product::create($request->all());
-        $product->load('category'); // load category object
+        $request->validate([
+            'category_id' => 'required|exists:categories,id',
+            'name'        => 'required|string|max:255',
+            'price'       => 'required|numeric|min:0',
+        ]);
+
+        $product = Product::create($request->only(['category_id', 'name', 'price']));
+
+        if ($request->has('size_ids') && is_array($request->size_ids)) {
+            $product->sizes()->sync($request->size_ids);
+        }
+
+        $product->load('category', 'sizes');
         return response()->json($product);
     }
 
-
-    public function edit($id)
+    public function update(Request $request, $id)
     {
-        return response()->json(Product::find($id));
-    }
+        $request->validate([
+            'category_id' => 'required|exists:categories,id',
+            'name'        => 'required|string|max:255',
+            'price'       => 'required|numeric|min:0',
+        ]);
 
-    // Return product with category for update
-    public function update(Request $request, Product $product)
-    {
-        $product->update($request->all());
-        $product->load('category'); // load category object
+        $product = Product::findOrFail($id);
+        $product->update($request->only(['category_id', 'name', 'price']));
+
+        if ($request->has('size_ids') && is_array($request->size_ids)) {
+            $product->sizes()->sync($request->size_ids);
+        } else {
+            $product->sizes()->detach();
+        }
+
+        $product->load('category', 'sizes');
         return response()->json($product);
     }
 
     public function destroy($id)
     {
-        Product::destroy($id);
+        $product = Product::findOrFail($id);
+        $product->sizes()->detach();
+        $product->delete();
         return response()->json(['success' => true]);
     }
 }
