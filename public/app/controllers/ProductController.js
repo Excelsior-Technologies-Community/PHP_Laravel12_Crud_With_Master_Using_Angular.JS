@@ -1,175 +1,120 @@
 app.controller('ProductController', function ($scope, dataFactory) {
 
-    $scope.openModal = function (type, product = null) {
+    $scope.products = [];
+    $scope.categories = [];
+    $scope.sizes = [];
+    $scope.form = {};
+    $scope.search = { name: '', category_id: '' };
+    $scope.currentPage = 1;
+    $scope.pageSize = 5;
+
+    $scope.showToast = function (msg, type) {
+        var el = document.createElement('div');
+        el.className = 'toast-msg toast-' + (type || 'success');
+        el.innerText = msg;
+        document.getElementById('toast-container').appendChild(el);
+        setTimeout(function () {
+            el.style.opacity = '0';
+            setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 500);
+        }, 3000);
+    };
+
+    $scope.openModal = function (type, product) {
         if (type === 'add') {
             $scope.form = {};
-        } else if (type === 'edit') {
+        } else {
             $scope.form = angular.copy(product);
+            if (product.sizes && product.sizes.length > 0) {
+                $scope.form.size_id = product.sizes.id;
+            }
         }
         $('#productModal').modal('show');
     };
 
-    $scope.products = [];
-    $scope.categories = [];
-    $scope.form = {};
-
-    // =========================
-    // SEARCH + FILTER
-    // =========================
-    $scope.search = {
-        name: '',
-        category_id: ''
-    };
-
-    // =========================
-    // PAGINATION
-    // =========================
-    $scope.currentPage = 1;
-    $scope.pageSize = 5;
-
-    // =========================
-    // FILTER FUNCTION
-    // =========================
     $scope.filterProducts = function (product) {
-
-        let matchName = true;
-        let matchCategory = true;
-
-        // Search by name
+        var matchName = true;
+        var matchCategory = true;
         if ($scope.search.name) {
-            matchName = product.name.toLowerCase()
-                .includes($scope.search.name.toLowerCase());
+            matchName = product.name.toLowerCase().includes($scope.search.name.toLowerCase());
         }
-
-        // Filter by category dropdown
         if ($scope.search.category_id) {
             matchCategory = product.category_id == $scope.search.category_id;
         }
-
         return matchName && matchCategory;
     };
 
-    // =========================
-    // PAGINATED DATA
-    // =========================
     $scope.getPaginatedData = function () {
-        let filtered = $scope.products.filter($scope.filterProducts);
-
-        let start = ($scope.currentPage - 1) * $scope.pageSize;
-        let end = start + $scope.pageSize;
-
-        return filtered.slice(start, end);
+        var filtered = $scope.products.filter($scope.filterProducts);
+        var start = ($scope.currentPage - 1) * $scope.pageSize;
+        return filtered.slice(start, start + $scope.pageSize);
     };
 
-    // =========================
-    // TOTAL PAGES
-    // =========================
     $scope.totalPages = function () {
-        return Math.ceil(
-            $scope.products.filter($scope.filterProducts).length / $scope.pageSize
-        );
+        var count = $scope.products.filter($scope.filterProducts).length;
+        return Math.ceil(count / $scope.pageSize) || 1;
     };
 
-    // =========================
-    // PAGE FUNCTIONS
-    // =========================
-    $scope.setPage = function (page) {
-        if (page >= 1 && page <= $scope.totalPages()) {
-            $scope.currentPage = page;
-        }
+    $scope.setPage = function (p) { 
+        if (p >= 1 && p <= $scope.totalPages()) $scope.currentPage = p; 
+    };
+    
+    $scope.prevPage = function () { 
+        if ($scope.currentPage > 1) $scope.currentPage--; 
+    };
+    
+    $scope.nextPage = function () { 
+        if ($scope.currentPage < $scope.totalPages()) $scope.currentPage++; 
     };
 
-    $scope.prevPage = function () {
-        if ($scope.currentPage > 1) {
-            $scope.currentPage--;
-        }
-    };
-
-    $scope.nextPage = function () {
-        if ($scope.currentPage < $scope.totalPages()) {
-            $scope.currentPage++;
-        }
-    };
-
-    // Reset page when filter/search changes
-    $scope.$watch('search', function () {
-        $scope.currentPage = 1;
+    $scope.$watch('search', function () { 
+        $scope.currentPage = 1; 
     }, true);
 
-    // =========================
-    // LOAD CATEGORIES
-    // =========================
-    dataFactory.httpRequest('categories')
-        .then(function (response) {
-            $scope.categories = response;
-        });
+    dataFactory.httpRequest('categories').then(function (res) { $scope.categories = res; });
+    dataFactory.httpRequest('sizes').then(function (res) { $scope.sizes = res; });
 
-    // =========================
-    // LOAD PRODUCTS
-    // =========================
     function loadProducts() {
-        dataFactory.httpRequest('products')
-            .then(function (response) {
-                $scope.products = response;
-            });
+        dataFactory.httpRequest('products').then(function (res) { $scope.products = res; });
     }
 
     loadProducts();
 
-    // =========================
-    // CREATE
-    // =========================
     $scope.save = function () {
-        dataFactory.httpRequest('products', 'POST', {}, $scope.form)
-            .then(function (response) {
-                $scope.products.push(response);
-                $scope.form = {};
-            });
-    };
+        var payload = angular.copy($scope.form);
+        if (payload.size_id) {
+            payload.size_ids = [payload.size_id];
+        }
 
-    // =========================
-    // EDIT
-    // =========================
-    $scope.edit = function (product) {
-        $scope.form = {
-            id: product.id,
-            name: product.name,
-            price: product.price,
-            category_id: product.category_id
-        };
-    };
-
-    // =========================
-    // UPDATE
-    // =========================
-    $scope.update = function () {
-        dataFactory.httpRequest(
-            'products/' + $scope.form.id,
-            'PUT',
-            {},
-            $scope.form
-        ).then(function (response) {
-
-            angular.forEach($scope.products, function (value, key) {
-                if (value.id == response.id) {
-                    $scope.products[key] = response;
-                }
-            });
-
+        dataFactory.httpRequest('products', 'POST', {}, payload).then(function (res) {
+            $scope.products.push(res);
             $scope.form = {};
+            $('#productModal').modal('hide');
+            $scope.showToast('Product created!', 'success');
         });
     };
 
-    // =========================
-    // DELETE
-    // =========================
-    $scope.remove = function (id, index) {
-        if (confirm("Delete Product?")) {
-            dataFactory.httpRequest('products/' + id, 'DELETE')
-                .then(function () {
-                    $scope.products.splice(index, 1);
-                });
+    $scope.update = function () {
+        var payload = angular.copy($scope.form);
+        if (payload.size_id) {
+            payload.size_ids = [payload.size_id];
         }
+
+        dataFactory.httpRequest('products/' + payload.id, 'PUT', {}, payload).then(function (res) {
+            angular.forEach($scope.products, function (p, k) {
+                if (p.id == res.id) $scope.products[k] = res;
+            });
+            $scope.form = {};
+            $('#productModal').modal('hide');
+            $scope.showToast('Product updated!', 'info');
+        });
+    };
+
+    $scope.remove = function (id, index) {
+        if (!confirm('Delete product?')) return;
+        dataFactory.httpRequest('products/' + id, 'DELETE').then(function () {
+            $scope.products.splice(index, 1);
+            $scope.showToast('Product deleted!', 'error');
+        });
     };
 
 });

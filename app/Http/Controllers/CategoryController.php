@@ -1,5 +1,7 @@
 <?php
 
+// app/Http/Controllers/CategoryController.php
+
 namespace App\Http\Controllers;
 
 use App\Models\Category;
@@ -15,18 +17,18 @@ class CategoryController extends Controller
 
     public function store(Request $request)
     {
-        return response()->json(Category::create($request->all()));
-    }
-
-    public function edit($id)
-    {
-        return response()->json(Category::find($id));
+        $request->validate(['name' => 'required|string|max:255']);
+        $cat = Category::create($request->all());
+        $cat->products_count = 0;
+        return response()->json($cat);
     }
 
     public function update(Request $request, $id)
     {
-        $cat = Category::find($id);
+        $request->validate(['name' => 'required|string|max:255']);
+        $cat = Category::findOrFail($id);
         $cat->update($request->all());
+        $cat->loadCount('products');
         return response()->json($cat);
     }
 
