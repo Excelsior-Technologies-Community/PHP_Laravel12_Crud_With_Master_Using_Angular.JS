@@ -9,11 +9,10 @@ Route::get('/', function () {
     return view('app');
 });
 
+Route::get('/templates/{template}', function ($template) {
+    return view('templates.' . $template);
+});
+
 Route::resource('categories', CategoryController::class);
 Route::resource('products', ProductController::class);
 Route::resource('sizes', SizeController::class);
-
-Route::get('/templates/{template}', function($template){
-    $template = str_replace(".html","",$template);
-    return view('templates.'.$template);
-});

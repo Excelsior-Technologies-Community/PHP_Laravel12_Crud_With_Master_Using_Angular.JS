@@ -1,120 +1,207 @@
-app.controller('ProductController', function ($scope, dataFactory) {
-
+app.controller('ProductController', function($scope, dataFactory, toastService) {
     $scope.products = [];
     $scope.categories = [];
     $scope.sizes = [];
     $scope.form = {};
-    $scope.search = { name: '', category_id: '' };
-    $scope.currentPage = 1;
-    $scope.pageSize = 5;
-
-    $scope.showToast = function (msg, type) {
-        var el = document.createElement('div');
-        el.className = 'toast-msg toast-' + (type || 'success');
-        el.innerText = msg;
-        document.getElementById('toast-container').appendChild(el);
-        setTimeout(function () {
-            el.style.opacity = '0';
-            setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 500);
-        }, 3000);
-    };
-
-    $scope.openModal = function (type, product) {
+    $scope.loading = false;
+    $scope.modalTitle = 'Add Product';
+    
+    // Load all categories for dropdown
+    function loadCategories() {
+        dataFactory.get('categories')
+            .then(function(response) {
+                if (response.success) {
+                    $scope.categories = response.data || response;
+                    if (!Array.isArray($scope.categories)) {
+                        $scope.categories = [];
+                    }
+                }
+            })
+            .catch(function(error) {
+                console.error('Error loading categories:', error);
+            });
+    }
+    
+    // Load all sizes for checkboxes
+    function loadSizes() {
+        dataFactory.get('sizes')
+            .then(function(response) {
+                if (response.success) {
+                    $scope.sizes = response.data || response;
+                    if (!Array.isArray($scope.sizes)) {
+                        $scope.sizes = [];
+                    }
+                }
+            })
+            .catch(function(error) {
+                console.error('Error loading sizes:', error);
+            });
+    }
+    
+    // Load all products
+    function loadProducts() {
+        $scope.loading = true;
+        dataFactory.get('products')
+            .then(function(response) {
+                console.log('Products API Response:', response);
+                if (response.success) {
+                    $scope.products = response.data || response;
+                    if (!Array.isArray($scope.products)) {
+                        $scope.products = [];
+                    }
+                    console.log('Products loaded:', $scope.products.length);
+                } else {
+                    toastService.error(response.message || 'Failed to load products');
+                    $scope.products = [];
+                }
+            })
+            .catch(function(error) {
+                console.error('Error loading products:', error);
+                toastService.error(error);
+                $scope.products = [];
+            })
+            .finally(function() {
+                $scope.loading = false;
+            });
+    }
+    
+    loadCategories();
+    loadSizes();
+    loadProducts();
+    
+    // Open modal for add/edit
+    $scope.openModal = function(type, product) {
         if (type === 'add') {
-            $scope.form = {};
-        } else {
-            $scope.form = angular.copy(product);
-            if (product.sizes && product.sizes.length > 0) {
-                $scope.form.size_id = product.sizes.id;
-            }
+            $scope.form = {
+                size_ids: []
+            };
+            $scope.modalTitle = 'Add Product';
+        } else if (type === 'edit') {
+            $scope.form = {
+                id: product.id,
+                name: product.name,
+                price: product.price,
+                category_id: product.category_id,
+                size_ids: product.sizes ? product.sizes.map(function(s) { return s.id; }) : []
+            };
+            $scope.modalTitle = 'Edit Product';
         }
         $('#productModal').modal('show');
     };
-
-    $scope.filterProducts = function (product) {
-        var matchName = true;
-        var matchCategory = true;
-        if ($scope.search.name) {
-            matchName = product.name.toLowerCase().includes($scope.search.name.toLowerCase());
+    
+    // Toggle size selection
+    $scope.toggleSize = function(sizeId) {
+        if (!$scope.form.size_ids) {
+            $scope.form.size_ids = [];
         }
-        if ($scope.search.category_id) {
-            matchCategory = product.category_id == $scope.search.category_id;
+        var index = $scope.form.size_ids.indexOf(sizeId);
+        if (index === -1) {
+            $scope.form.size_ids.push(sizeId);
+        } else {
+            $scope.form.size_ids.splice(index, 1);
         }
-        return matchName && matchCategory;
-    };
-
-    $scope.getPaginatedData = function () {
-        var filtered = $scope.products.filter($scope.filterProducts);
-        var start = ($scope.currentPage - 1) * $scope.pageSize;
-        return filtered.slice(start, start + $scope.pageSize);
-    };
-
-    $scope.totalPages = function () {
-        var count = $scope.products.filter($scope.filterProducts).length;
-        return Math.ceil(count / $scope.pageSize) || 1;
-    };
-
-    $scope.setPage = function (p) { 
-        if (p >= 1 && p <= $scope.totalPages()) $scope.currentPage = p; 
     };
     
-    $scope.prevPage = function () { 
-        if ($scope.currentPage > 1) $scope.currentPage--; 
+    // Check if size is selected
+    $scope.isSizeSelected = function(sizeId) {
+        return $scope.form.size_ids && $scope.form.size_ids.indexOf(sizeId) !== -1;
     };
     
-    $scope.nextPage = function () { 
-        if ($scope.currentPage < $scope.totalPages()) $scope.currentPage++; 
-    };
-
-    $scope.$watch('search', function () { 
-        $scope.currentPage = 1; 
-    }, true);
-
-    dataFactory.httpRequest('categories').then(function (res) { $scope.categories = res; });
-    dataFactory.httpRequest('sizes').then(function (res) { $scope.sizes = res; });
-
-    function loadProducts() {
-        dataFactory.httpRequest('products').then(function (res) { $scope.products = res; });
-    }
-
-    loadProducts();
-
-    $scope.save = function () {
-        var payload = angular.copy($scope.form);
-        if (payload.size_id) {
-            payload.size_ids = [payload.size_id];
+    // Save new product
+    $scope.save = function() {
+        if (!$scope.form.name) {
+            toastService.error('Please enter product name');
+            return;
         }
-
-        dataFactory.httpRequest('products', 'POST', {}, payload).then(function (res) {
-            $scope.products.push(res);
-            $scope.form = {};
-            $('#productModal').modal('hide');
-            $scope.showToast('Product created!', 'success');
-        });
-    };
-
-    $scope.update = function () {
-        var payload = angular.copy($scope.form);
-        if (payload.size_id) {
-            payload.size_ids = [payload.size_id];
+        if (!$scope.form.price) {
+            toastService.error('Please enter product price');
+            return;
         }
-
-        dataFactory.httpRequest('products/' + payload.id, 'PUT', {}, payload).then(function (res) {
-            angular.forEach($scope.products, function (p, k) {
-                if (p.id == res.id) $scope.products[k] = res;
+        if (!$scope.form.category_id) {
+            toastService.error('Please select a category');
+            return;
+        }
+        
+        $scope.loading = true;
+        dataFactory.post('products', $scope.form)
+            .then(function(response) {
+                if (response.success) {
+                    var newProduct = response.data || response;
+                    $scope.products.push(newProduct);
+                    $scope.form = { size_ids: [] };
+                    $('#productModal').modal('hide');
+                    toastService.success(response.message || 'Product created successfully!');
+                } else {
+                    toastService.error(response.message || 'Failed to create product');
+                }
+            })
+            .catch(function(error) {
+                toastService.error(error);
+            })
+            .finally(function() {
+                $scope.loading = false;
             });
-            $scope.form = {};
-            $('#productModal').modal('hide');
-            $scope.showToast('Product updated!', 'info');
-        });
     };
-
-    $scope.remove = function (id, index) {
-        if (!confirm('Delete product?')) return;
-        dataFactory.httpRequest('products/' + id, 'DELETE').then(function () {
-            $scope.products.splice(index, 1);
-            $scope.showToast('Product deleted!', 'error');
-        });
+    
+    // Update existing product
+    $scope.update = function() {
+        if (!$scope.form.name) {
+            toastService.error('Please enter product name');
+            return;
+        }
+        if (!$scope.form.price) {
+            toastService.error('Please enter product price');
+            return;
+        }
+        if (!$scope.form.category_id) {
+            toastService.error('Please select a category');
+            return;
+        }
+        
+        $scope.loading = true;
+        dataFactory.put('products/' + $scope.form.id, $scope.form)
+            .then(function(response) {
+                if (response.success) {
+                    var updatedProduct = response.data || response;
+                    angular.forEach($scope.products, function(product, index) {
+                        if (product.id === updatedProduct.id) {
+                            $scope.products[index] = updatedProduct;
+                        }
+                    });
+                    $scope.form = { size_ids: [] };
+                    $('#productModal').modal('hide');
+                    toastService.success(response.message || 'Product updated successfully!');
+                } else {
+                    toastService.error(response.message || 'Failed to update product');
+                }
+            })
+            .catch(function(error) {
+                toastService.error(error);
+            })
+            .finally(function() {
+                $scope.loading = false;
+            });
     };
-
+    
+    // Delete product
+    $scope.remove = function(id, index) {
+        if (confirm('Are you sure you want to delete this product?')) {
+            $scope.loading = true;
+            dataFactory.delete('products/' + id)
+                .then(function(response) {
+                    if (response.success) {
+                        $scope.products.splice(index, 1);
+                        toastService.success(response.message || 'Product deleted successfully!');
+                    } else {
+                        toastService.error(response.message || 'Failed to delete product');
+                    }
+                })
+                .catch(function(error) {
+                    toastService.error(error);
+                })
+                .finally(function() {
+                    $scope.loading = false;
+                });
+        }
+    };
 });
