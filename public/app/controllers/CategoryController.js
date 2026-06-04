@@ -1,70 +1,133 @@
-// public/app/controllers/CategoryController.js
-
-app.controller('CategoryController', function ($scope, dataFactory) {
-
+app.controller('CategoryController', function($scope, dataFactory, toastService) {
     $scope.categories = [];
-    $scope.form       = {};
-
-    // ─── TOAST ───────────────────────────────────────────────────────────────
-    $scope.showToast = function (msg, type) {
-        var el = document.createElement('div');
-        el.className = 'toast-msg toast-' + (type || 'success');
-        el.innerText = msg;
-        document.getElementById('toast-container').appendChild(el);
-        setTimeout(function () {
-            el.style.opacity = '0';
-            setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 500);
-        }, 3000);
-    };
-
-    // ─── OPEN MODAL ───────────────────────────────────────────────────────────
-    $scope.openModal = function (type, category) {
-        $scope.form = (type === 'edit') ? angular.copy(category) : {};
-        $('#categoryModal').modal('show');
-    };
-
-    // ─── LOAD ─────────────────────────────────────────────────────────────────
+    $scope.form = {};
+    $scope.loading = false;
+    $scope.modalTitle = 'Add Category';
+    
+    // Load all categories
     function loadCategories() {
-        dataFactory.httpRequest('categories')
-            .then(function (res) {
-                $scope.categories = res;
+        $scope.loading = true;
+        dataFactory.get('categories')
+            .then(function(response) {
+                console.log('API Response:', response); // Debug log
+                // FIX: Check if data is in response.data or directly in response
+                if (response.success) {
+                    // Handle both response formats
+                    $scope.categories = response.data || response;
+                    if (Array.isArray($scope.categories)) {
+                        console.log('Categories loaded:', $scope.categories.length);
+                    } else {
+                        $scope.categories = [];
+                    }
+                } else {
+                    toastService.error(response.message || 'Failed to load categories');
+                    $scope.categories = [];
+                }
+            })
+            .catch(function(error) {
+                console.error('Error loading categories:', error);
+                toastService.error(error);
+                $scope.categories = [];
+            })
+            .finally(function() {
+                $scope.loading = false;
             });
     }
-
+    
     loadCategories();
-
-    // ─── CREATE ───────────────────────────────────────────────────────────────
-    $scope.save = function () {
-        dataFactory.httpRequest('categories', 'POST', {}, $scope.form)
-            .then(function (res) {
-                $scope.categories.push(res);
-                $scope.form = {};
-                $('#categoryModal').modal('hide');
-                $scope.showToast('Category created!', 'success');
+    
+    // Open modal for add/edit
+    $scope.openModal = function(type, category) {
+        if (type === 'add') {
+            $scope.form = {};
+            $scope.modalTitle = 'Add Category';
+        } else if (type === 'edit') {
+            $scope.form = angular.copy(category);
+            $scope.modalTitle = 'Edit Category';
+        }
+        $('#categoryModal').modal('show');
+    };
+    
+    // Save new category
+    $scope.save = function() {
+        if (!$scope.form.name) {
+            toastService.error('Please enter category name');
+            return;
+        }
+        
+        $scope.loading = true;
+        dataFactory.post('categories', $scope.form)
+            .then(function(response) {
+                if (response.success) {
+                    var newCategory = response.data || response;
+                    $scope.categories.push(newCategory);
+                    $scope.form = {};
+                    $('#categoryModal').modal('hide');
+                    toastService.success(response.message || 'Category created successfully!');
+                } else {
+                    toastService.error(response.message || 'Failed to create category');
+                }
+            })
+            .catch(function(error) {
+                toastService.error(error);
+            })
+            .finally(function() {
+                $scope.loading = false;
             });
     };
-
-    // ─── UPDATE ───────────────────────────────────────────────────────────────
-    $scope.update = function () {
-        dataFactory.httpRequest('categories/' + $scope.form.id, 'PUT', {}, $scope.form)
-            .then(function (res) {
-                angular.forEach($scope.categories, function (c, k) {
-                    if (c.id == res.id) $scope.categories[k] = res;
+    
+    // Update existing category
+    $scope.update = function() {
+        if (!$scope.form.name) {
+            toastService.error('Please enter category name');
+            return;
+        }
+        
+        $scope.loading = true;
+        dataFactory.put('categories/' + $scope.form.id, $scope.form)
+            .then(function(response) {
+                if (response.success) {
+                    var updatedCategory = response.data || response;
+                    // Update in list
+                    angular.forEach($scope.categories, function(cat, index) {
+                        if (cat.id === updatedCategory.id) {
+                            $scope.categories[index] = updatedCategory;
+                        }
+                    });
+                    $scope.form = {};
+                    $('#categoryModal').modal('hide');
+                    toastService.success(response.message || 'Category updated successfully!');
+                } else {
+                    toastService.error(response.message || 'Failed to update category');
+                }
+            })
+            .catch(function(error) {
+                toastService.error(error);
+            })
+            .finally(function() {
+                $scope.loading = false;
+            });
+    };
+    
+    // Delete category
+    $scope.remove = function(id, index) {
+        if (confirm('Are you sure you want to delete this category?')) {
+            $scope.loading = true;
+            dataFactory.delete('categories/' + id)
+                .then(function(response) {
+                    if (response.success) {
+                        $scope.categories.splice(index, 1);
+                        toastService.success(response.message || 'Category deleted successfully!');
+                    } else {
+                        toastService.error(response.message || 'Failed to delete category');
+                    }
+                })
+                .catch(function(error) {
+                    toastService.error(error);
+                })
+                .finally(function() {
+                    $scope.loading = false;
                 });
-                $scope.form = {};
-                $('#categoryModal').modal('hide');
-                $scope.showToast('Category updated!', 'info');
-            });
+        }
     };
-
-    // ─── DELETE ───────────────────────────────────────────────────────────────
-    $scope.remove = function (id, index) {
-        if (!confirm('Delete Category?')) return;
-        dataFactory.httpRequest('categories/' + id, 'DELETE')
-            .then(function () {
-                $scope.categories.splice(index, 1);
-                $scope.showToast('Category deleted!', 'error');
-            });
-    };
-
 });
